@@ -1,13 +1,12 @@
-ECLARE
+DECLARE
     v_sql VARCHAR2(4000);
     v_owner VARCHAR2(30);
     v_table VARCHAR2(30);
     CURSOR c_tables IS
         SELECT DISTINCT OWNER, TABLE_NAME 
         FROM ALL_TABLES;
-    v_rownum NUMBER := 1;
-    TYPE result_table IS TABLE OF VARCHAR2(4000) INDEX BY PLS_INTEGER;
-    -- Individual variables to hold dynamic query results
+    
+    -- Declaring variables to store results from the cursor
     v_owner_result VARCHAR2(30);
     v_table_result VARCHAR2(30);
     v_row1 VARCHAR2(4000);
@@ -15,25 +14,29 @@ ECLARE
     v_row3 VARCHAR2(4000);
     v_row4 VARCHAR2(4000);
     v_row5 VARCHAR2(4000);
-    c_cursor SYS_REFCURSOR;  -- Declare cursor to handle dynamic SQL execution
+
+    -- Declare a cursor for dynamic SQL
+    c_cursor SYS_REFCURSOR;  
 BEGIN
+    -- Loop through all the tables
     FOR rec IN c_tables LOOP
-        -- Start building dynamic SQL for each owner and table
+        -- Loop through each table for a given owner
         FOR table_rec IN (SELECT TABLE_NAME FROM ALL_TABLES WHERE OWNER = rec.OWNER) LOOP
+            -- Start building the dynamic SQL query
             v_sql := 'SELECT ''' || rec.OWNER || ''' AS OWNER, ''' || table_rec.TABLE_NAME || ''' AS TABLE_NAME, ';
 
-            -- Dynamically fetch the first 5 rows (or fewer, if the table has less)
+            -- Dynamically handle the first 5 rows
             FOR i IN 1..5 LOOP
-                v_sql := v_sql || 'MAX(CASE WHEN ROWNUM = ' || i || ' THEN ' || 'COLUMN_' || i || ' END) AS Row_' || i || ', ';
+                v_sql := v_sql || 'MAX(CASE WHEN ROWNUM = ' || i || ' THEN COLUMN_' || i || ' END) AS Row_' || i || ', ';
             END LOOP;
 
-            -- Remove last comma and complete the query
+            -- Remove the last comma and complete the query
             v_sql := RTRIM(v_sql, ', ') || ' FROM ' || rec.OWNER || '.' || table_rec.TABLE_NAME;
 
-            -- Open the dynamic query for execution
+            -- Open the dynamic query
             OPEN c_cursor FOR v_sql;
 
-            -- Fetch the results into individual variables
+            -- Fetch the results into the variables
             LOOP
                 FETCH c_cursor INTO v_owner_result, v_table_result, v_row1, v_row2, v_row3, v_row4, v_row5;
                 EXIT WHEN c_cursor%NOTFOUND;
@@ -46,7 +49,7 @@ BEGIN
                 DBMS_OUTPUT.PUT_LINE('Row 4: ' || v_row4);
                 DBMS_OUTPUT.PUT_LINE('Row 5: ' || v_row5);
             END LOOP;
-            CLOSE c_cursor;  -- Close the cursor after fetching
+            CLOSE c_cursor;  -- Close the cursor after each table's query
         END LOOP;
     END LOOP;
 END;
