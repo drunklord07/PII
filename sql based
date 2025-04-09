@@ -1,0 +1,25 @@
+SELECT 
+    OWNER,
+    TABLE_NAME,
+    MAX(CASE WHEN ROWNUM = 1 THEN COLUMN_VALUE END) AS "Row_1",
+    MAX(CASE WHEN ROWNUM = 2 THEN COLUMN_VALUE END) AS "Row_2",
+    MAX(CASE WHEN ROWNUM = 3 THEN COLUMN_VALUE END) AS "Row_3",
+    MAX(CASE WHEN ROWNUM = 4 THEN COLUMN_VALUE END) AS "Row_4",
+    MAX(CASE WHEN ROWNUM = 5 THEN COLUMN_VALUE END) AS "Row_5"
+FROM 
+    (SELECT OWNER, 
+            TABLE_NAME,
+            COLUMN_NAME,
+            COLUMN_VALUE,
+            ROWNUM
+    FROM 
+        (SELECT OWNER,
+                TABLE_NAME,
+                COLUMN_NAME,
+                COLUMN_VALUE 
+        FROM ALL_TAB_COLUMNS 
+        ) 
+    WHERE ROWNUM <= 5) -- Fetch top 5 rows
+GROUP BY 
+    OWNER, 
+    TABLE_NAME;
