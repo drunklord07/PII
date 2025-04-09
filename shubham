@@ -7,7 +7,7 @@ DECLARE
     CURSOR c_tables IS
         SELECT DISTINCT OWNER, TABLE_NAME 
         FROM ALL_TABLES;
-
+    
     -- Variables to store the fetched data
     v_owner_result VARCHAR2(30);
     v_table_result VARCHAR2(30);
@@ -20,17 +20,31 @@ DECLARE
     -- Cursor to handle dynamic SQL execution
     c_cursor SYS_REFCURSOR;  
 
+    -- Variable to store the column names for dynamic SQL
+    v_column_names VARCHAR2(4000);
+    v_column_list VARCHAR2(4000);
 BEGIN
     -- Loop through all the owners and their respective tables
     FOR rec IN c_tables LOOP
         -- Loop through each table for a given owner
         FOR table_rec IN (SELECT TABLE_NAME FROM ALL_TABLES WHERE OWNER = rec.OWNER) LOOP
+            -- Fetch the column names for the current table
+            v_column_list := '';
+            FOR col_rec IN (SELECT COLUMN_NAME 
+                            FROM ALL_TAB_COLUMNS 
+                            WHERE OWNER = rec.OWNER AND TABLE_NAME = table_rec.TABLE_NAME) LOOP
+                v_column_list := v_column_list || col_rec.COLUMN_NAME || ', ';
+            END LOOP;
+
+            -- Remove the last comma and space
+            v_column_list := RTRIM(v_column_list, ', ');
+
             -- Start building the dynamic SQL query
             v_sql := 'SELECT ''' || rec.OWNER || ''' AS OWNER, ''' || table_rec.TABLE_NAME || ''' AS TABLE_NAME, ';
 
             -- Dynamically fetch the first 5 rows
             FOR i IN 1..5 LOOP
-                v_sql := v_sql || 'MAX(CASE WHEN ROWNUM = ' || i || ' THEN COLUMN_' || i || ' END) AS Row_' || i || ', ';
+                v_sql := v_sql || 'MAX(CASE WHEN ROWNUM = ' || i || ' THEN ' || 'COLUMN_' || i || ' END) AS Row_' || i || ', ';
             END LOOP;
 
             -- Remove the last comma and complete the query
