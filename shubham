@@ -32,7 +32,7 @@ BEGIN
             FOR col_rec IN (SELECT COLUMN_NAME 
                             FROM ALL_TAB_COLUMNS 
                             WHERE OWNER = rec.OWNER AND TABLE_NAME = table_rec.TABLE_NAME) LOOP
-                v_column_list := v_column_list || table_rec.TABLE_NAME || '.' || col_rec.COLUMN_NAME || ', ';
+                v_column_list := v_column_list || col_rec.COLUMN_NAME || ', ';
             END LOOP;
 
             -- Remove the last comma and space
@@ -42,12 +42,8 @@ BEGIN
             v_sql := 'SELECT ''' || rec.OWNER || ''' AS OWNER, ''' || table_rec.TABLE_NAME || ''' AS TABLE_NAME, ';
 
             -- Dynamically fetch the first 5 rows using the actual column names
-            FOR i IN 1..5 LOOP
-                v_sql := v_sql || 'MAX(CASE WHEN ROWNUM = ' || i || ' THEN ' || v_column_list || ' END) AS Row_' || i || ', ';
-            END LOOP;
-
-            -- Remove the last comma and complete the query
-            v_sql := RTRIM(v_sql, ', ') || ' FROM ' || rec.OWNER || '.' || table_rec.TABLE_NAME;
+            v_sql := v_sql || v_column_list || ' FROM ' || rec.OWNER || '.' || table_rec.TABLE_NAME || 
+                     ' WHERE ROWNUM <= 5';  -- Limit the result to first 5 rows.
 
             -- Open the dynamic query for execution
             OPEN c_cursor FOR v_sql;
