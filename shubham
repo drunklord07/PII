@@ -1,0 +1,40 @@
+DECLARE
+    v_sql VARCHAR2(4000);
+    v_owner VARCHAR2(30);
+    v_table VARCHAR2(30);
+    CURSOR c_tables IS
+        SELECT DISTINCT OWNER, TABLE_NAME 
+        FROM ALL_TABLES;
+    v_rownum NUMBER := 1;
+    TYPE result_table IS TABLE OF VARCHAR2(4000) INDEX BY PLS_INTEGER;
+    results result_table;
+    c_cursor SYS_REFCURSOR;  -- Declare cursor to handle dynamic SQL execution
+BEGIN
+    FOR rec IN c_tables LOOP
+        -- Start building dynamic SQL for each owner and table
+        FOR table_rec IN (SELECT TABLE_NAME FROM ALL_TABLES WHERE OWNER = rec.OWNER) LOOP
+            v_sql := 'SELECT ''' || rec.OWNER || ''' AS OWNER, ''' || table_rec.TABLE_NAME || ''' AS TABLE_NAME, ';
+
+            -- Dynamically fetch the first 5 columns (or fewer, if the table has less)
+            FOR i IN 1..5 LOOP
+                v_sql := v_sql || 'MAX(CASE WHEN ROWNUM = ' || i || ' THEN COLUMN_' || i || ' END) AS Row_' || i || ', ';
+            END LOOP;
+
+            -- Remove last comma and complete the query
+            v_sql := RTRIM(v_sql, ', ') || ' FROM ' || rec.OWNER || '.' || table_rec.TABLE_NAME;
+
+            -- Open the dynamic query for execution
+            OPEN c_cursor FOR v_sql;
+
+            -- Fetch the results
+            LOOP
+                FETCH c_cursor INTO results;
+                EXIT WHEN c_cursor%NOTFOUND;
+                FOR i IN 1..5 LOOP
+                    DBMS_OUTPUT.PUT_LINE('Row ' || i || ': ' || results(i));
+                END LOOP;
+            END LOOP;
+            CLOSE c_cursor;  -- Close the cursor
+        END LOOP;
+    END LOOP;
+END;
