@@ -1,0 +1,24 @@
+DECLARE
+    v_sql VARCHAR2(4000);
+    v_owner VARCHAR2(30);
+    v_table VARCHAR2(30);
+BEGIN
+    FOR rec IN (SELECT DISTINCT OWNER FROM ALL_TABLES) LOOP
+        FOR table_rec IN (SELECT TABLE_NAME FROM ALL_TABLES WHERE OWNER = rec.OWNER) LOOP
+            -- Dynamically create the SQL to fetch 5 rows of data from each table
+            v_sql := 'SELECT ''' || rec.OWNER || ''' AS OWNER, ''' || table_rec.TABLE_NAME || ''' AS TABLE_NAME, ';
+            
+            -- Dynamically add column values for Row_1 to Row_5
+            FOR i IN 1..5 LOOP
+                v_sql := v_sql || 'MAX(CASE WHEN ROWNUM = ' || i || ' THEN ' || i || ' END) AS Row_' || i || ', ';
+            END LOOP;
+            
+            -- Removing the last comma and closing the query
+            v_sql := RTRIM(v_sql, ', ') || ' FROM ' || rec.OWNER || '.' || table_rec.TABLE_NAME;
+
+            -- Execute the dynamic SQL
+            EXECUTE IMMEDIATE v_sql;
+        END LOOP;
+    END LOOP;
+END;
+/
