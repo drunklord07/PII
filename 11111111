@@ -1,3 +1,5 @@
+SET SERVEROUTPUT ON;
+
 DECLARE
     v_sql         VARCHAR2(4000);
     v_output      VARCHAR2(4000);
@@ -7,50 +9,49 @@ BEGIN
     FOR rec IN (
         SELECT OWNER, TABLE_NAME 
         FROM ALL_TABLES 
-        WHERE ROWNUM <= 10  -- Limit for testing
+        WHERE ROWNUM <= 10
     ) LOOP
         v_column_list := '';
 
-        -- Dynamically build column list
-        FOR col_rec IN (
-            SELECT COLUMN_NAME 
-            FROM ALL_TAB_COLUMNS 
-            WHERE OWNER = rec.OWNER AND TABLE_NAME = rec.TABLE_NAME 
-            ORDER BY COLUMN_ID
-        ) LOOP
-            v_column_list := v_column_list || 'TO_CHAR(' || col_rec.COLUMN_NAME || ') || '' | '' || ';
-        END LOOP;
-
-        -- Remove last ' || ' and trim extra characters
-        IF v_column_list IS NOT NULL THEN
-            v_column_list := RTRIM(v_column_list, ' || '' | '' || ');
-        ELSE
-            CONTINUE; -- Skip tables with no columns
-        END IF;
-
-        -- Build the dynamic SQL
-        v_sql := 'SELECT ' || v_column_list || 
-                 ' FROM "' || rec.OWNER || '"."' || rec.TABLE_NAME || 
-                 '" WHERE ROWNUM <= 5';
-
         BEGIN
-            OPEN c_cursor FOR v_sql;
-            LOOP
-                FETCH c_cursor INTO v_output;
-                EXIT WHEN c_cursor%NOTFOUND;
-
-                -- Insert the row into the results table
-                INSERT INTO TABLE_SAMPLE_DATA (OWNER_NAME, TABLE_NAME, SAMPLE_ROW)
-                VALUES (rec.OWNER, rec.TABLE_NAME, v_output);
+            FOR col_rec IN (
+                SELECT COLUMN_NAME 
+                FROM ALL_TAB_COLUMNS 
+                WHERE OWNER = rec.OWNER 
+                  AND TABLE_NAME = rec.TABLE_NAME 
+                  AND DATA_TYPE NOT IN ('CLOB', 'BLOB', 'NCLOB', 'LONG RAW', 'XMLTYPE')
+                ORDER BY COLUMN_ID
+            ) LOOP
+                v_column_list := v_column_list || 'TO_CHAR(' || col_rec.COLUMN_NAME || ') || '' | '' || ';
             END LOOP;
-            CLOSE c_cursor;
+
+            IF v_column_list IS NOT NULL THEN
+                v_column_list := SUBSTR(v_column_list, 1, LENGTH(v_column_list) - 11);
+            ELSE
+                CONTINUE;
+            END IF;
+
+            v_sql := 'SELECT ' || v_column_list || 
+                     ' FROM "' || rec.OWNER || '"."' || rec.TABLE_NAME || 
+                     '" WHERE ROWNUM <= 5';
+
+            BEGIN
+                OPEN c_cursor FOR v_sql;
+                LOOP
+                    FETCH c_cursor INTO v_output;
+                    EXIT WHEN c_cursor%NOTFOUND;
+                    DBMS_OUTPUT.PUT_LINE('[' || rec.OWNER || '.' || rec.TABLE_NAME || '] ' || v_output);
+                END LOOP;
+                CLOSE c_cursor;
+            EXCEPTION
+                WHEN OTHERS THEN
+                    NULL; -- Ignore errors
+            END;
 
         EXCEPTION
             WHEN OTHERS THEN
-                -- Handle ORA-00942 and others gracefully
-                NULL; -- Or log to an error table if needed
+                NULL; -- Ignore errors
         END;
     END LOOP;
-
-    COMMIT;
 END;
+/
