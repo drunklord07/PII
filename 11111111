@@ -7,7 +7,7 @@ DECLARE
     v_headers     VARCHAR2(4000);
     c_cursor      SYS_REFCURSOR;
     row_count     NUMBER;
-    v_owner       VARCHAR2(30) := UPPER('&schema_filter');  -- Use % to show all
+    v_owner       VARCHAR2(30) := '%';  -- No prompt, defaults to all schemas
 
 BEGIN
     FOR rec IN (
