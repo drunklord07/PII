@@ -1,34 +1,46 @@
-SET SERVEROUTPUT ON;
+SET SERVEROUTPUT ON SIZE UNLIMITED;
 
 DECLARE
     v_sql         VARCHAR2(4000);
     v_output      VARCHAR2(4000);
     v_column_list VARCHAR2(4000);
+    v_headers     VARCHAR2(4000);
     c_cursor      SYS_REFCURSOR;
+
+    -- Counter for row number
+    row_count     NUMBER;
+
 BEGIN
     FOR rec IN (
         SELECT OWNER, TABLE_NAME 
         FROM ALL_TABLES 
-        WHERE ROWNUM <= 50  -- Limit to first 50 tables for testing
+        WHERE ROWNUM <= 50  -- Limit for safety
     ) LOOP
         v_column_list := '';
+        v_headers := '';
+        row_count := 0;
 
-        -- Build dynamic column list
+        -- Build column list, skip LONG/CLOB/BLOB/LONG RAW
         FOR col_rec IN (
-            SELECT COLUMN_NAME 
+            SELECT COLUMN_NAME, DATA_TYPE
             FROM ALL_TAB_COLUMNS 
             WHERE OWNER = rec.OWNER AND TABLE_NAME = rec.TABLE_NAME 
             ORDER BY COLUMN_ID
         ) LOOP
-            v_column_list := v_column_list || 'TO_CHAR(' || col_rec.COLUMN_NAME || ') || '' | '' || ';
+            IF col_rec.DATA_TYPE NOT IN ('LONG', 'LONG RAW', 'CLOB', 'BLOB', 'NCLOB', 'BFILE') THEN
+                v_column_list := v_column_list || 'TO_CHAR(' || col_rec.COLUMN_NAME || ') || '' | '' || ';
+                v_headers := v_headers || col_rec.COLUMN_NAME || ' | ';
+            END IF;
         END LOOP;
 
+        -- Skip if no usable columns
         IF v_column_list IS NULL THEN
             CONTINUE;
         END IF;
 
-        -- Trim trailing concatenator
+        -- Trim trailing delimiters
         v_column_list := RTRIM(v_column_list, ' || '' | '' || ');
+        v_headers := RTRIM(v_headers, ' | ');
 
         -- Build dynamic SQL
         v_sql := 'SELECT ' || v_column_list || 
@@ -37,13 +49,23 @@ BEGIN
 
         BEGIN
             OPEN c_cursor FOR v_sql;
+
+            DBMS_OUTPUT.PUT_LINE('--- ' || rec.OWNER || '.' || rec.TABLE_NAME || ' ---');
+            DBMS_OUTPUT.PUT_LINE(v_headers);
+
             LOOP
                 FETCH c_cursor INTO v_output;
                 EXIT WHEN c_cursor%NOTFOUND;
 
-                -- Display each row in output
-                DBMS_OUTPUT.PUT_LINE('[' || rec.OWNER || '.' || rec.TABLE_NAME || '] => ' || v_output);
+                row_count := row_count + 1;
+                DBMS_OUTPUT.PUT_LINE('Row ' || row_count || ': ' || v_output);
             END LOOP;
+
+            IF row_count = 0 THEN
+                DBMS_OUTPUT.PUT_LINE('[No data]');
+            END IF;
+
+            DBMS_OUTPUT.PUT_LINE(' ');  -- spacer
             CLOSE c_cursor;
 
         EXCEPTION
