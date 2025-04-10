@@ -6,46 +6,53 @@ DECLARE
     v_column_list VARCHAR2(4000);
     v_headers     VARCHAR2(4000);
     c_cursor      SYS_REFCURSOR;
-
-    -- Counter for row number
     row_count     NUMBER;
+    v_owner       VARCHAR2(30) := UPPER('&schema_filter');  -- Use % to show all
 
 BEGIN
     FOR rec IN (
         SELECT OWNER, TABLE_NAME 
         FROM ALL_TABLES 
-        WHERE ROWNUM <= 50  -- Limit for safety
+        WHERE OWNER LIKE v_owner ESCAPE '\' 
+        ORDER BY OWNER, TABLE_NAME
     ) LOOP
         v_column_list := '';
         v_headers := '';
         row_count := 0;
 
-        -- Build column list, skip LONG/CLOB/BLOB/LONG RAW
+        -- Build list of readable columns
         FOR col_rec IN (
             SELECT COLUMN_NAME, DATA_TYPE
-            FROM ALL_TAB_COLUMNS 
-            WHERE OWNER = rec.OWNER AND TABLE_NAME = rec.TABLE_NAME 
+            FROM ALL_TAB_COLUMNS
+            WHERE OWNER = rec.OWNER AND TABLE_NAME = rec.TABLE_NAME
             ORDER BY COLUMN_ID
         ) LOOP
-            IF col_rec.DATA_TYPE NOT IN ('LONG', 'LONG RAW', 'CLOB', 'BLOB', 'NCLOB', 'BFILE') THEN
-                v_column_list := v_column_list || 'TO_CHAR(' || col_rec.COLUMN_NAME || ') || '' | '' || ';
+            IF col_rec.DATA_TYPE IN (
+                'CHAR', 'NCHAR', 'VARCHAR2', 'NVARCHAR2',
+                'NUMBER', 'DATE', 'TIMESTAMP', 'FLOAT',
+                'CLOB'
+            ) THEN
+                IF col_rec.DATA_TYPE = 'CLOB' THEN
+                    v_column_list := v_column_list || 'DBMS_LOB.SUBSTR(' || col_rec.COLUMN_NAME || ', 4000) || '' | '' || ';
+                ELSE
+                    v_column_list := v_column_list || 'TO_CHAR(' || col_rec.COLUMN_NAME || ') || '' | '' || ';
+                END IF;
                 v_headers := v_headers || col_rec.COLUMN_NAME || ' | ';
             END IF;
         END LOOP;
 
-        -- Skip if no usable columns
+        -- Skip tables with no usable columns
         IF v_column_list IS NULL THEN
             CONTINUE;
         END IF;
 
-        -- Trim trailing delimiters
+        -- Trim trailing
         v_column_list := RTRIM(v_column_list, ' || '' | '' || ');
         v_headers := RTRIM(v_headers, ' | ');
 
         -- Build dynamic SQL
-        v_sql := 'SELECT ' || v_column_list || 
-                 ' FROM "' || rec.OWNER || '"."' || rec.TABLE_NAME || 
-                 '" WHERE ROWNUM <= 5';
+        v_sql := 'SELECT ' || v_column_list ||
+                 ' FROM "' || rec.OWNER || '"."' || rec.TABLE_NAME || '" WHERE ROWNUM <= 5';
 
         BEGIN
             OPEN c_cursor FOR v_sql;
@@ -56,7 +63,6 @@ BEGIN
             LOOP
                 FETCH c_cursor INTO v_output;
                 EXIT WHEN c_cursor%NOTFOUND;
-
                 row_count := row_count + 1;
                 DBMS_OUTPUT.PUT_LINE('Row ' || row_count || ': ' || v_output);
             END LOOP;
@@ -65,12 +71,13 @@ BEGIN
                 DBMS_OUTPUT.PUT_LINE('[No data]');
             END IF;
 
-            DBMS_OUTPUT.PUT_LINE(' ');  -- spacer
+            DBMS_OUTPUT.PUT_LINE(' '); -- spacing
+
             CLOSE c_cursor;
 
         EXCEPTION
             WHEN OTHERS THEN
-                DBMS_OUTPUT.PUT_LINE('ERROR on ' || rec.OWNER || '.' || rec.TABLE_NAME || ': ' || SQLERRM);
+                DBMS_OUTPUT.PUT_LINE('ERROR in ' || rec.OWNER || '.' || rec.TABLE_NAME || ': ' || SQLERRM);
         END;
     END LOOP;
 END;
