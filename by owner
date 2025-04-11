@@ -9,7 +9,7 @@ DECLARE
     v_headers     VARCHAR2(4000);
     c_cursor      SYS_REFCURSOR;
     row_count     NUMBER;
-    v_owner       VARCHAR2(30) := 'YOUR_SCHEMA';  -- 👈 Change this for each run
+    v_owner       VARCHAR2(30) := 'YOUR_SCHEMA';  --  Change this for each run
 
 BEGIN
     FOR rec IN (
