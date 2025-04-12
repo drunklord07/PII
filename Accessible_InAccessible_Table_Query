@@ -1,0 +1,22 @@
+CREATE OR REPLACE PROCEDURE FIND_MOBILE_NUMBERS AS
+  CURSOR col_cursor IS
+    SELECT table_name, column_name
+    FROM user_tab_columns
+    WHERE data_type IN ('VARCHAR2', 'CHAR', 'CLOB', 'NVARCHAR2', 'NCHAR');
+
+  v_sql       VARCHAR2(4000);
+  v_table     VARCHAR2(256);
+  v_column    VARCHAR2(256);
+  v_val       VARCHAR2(4000);
+  v_cursor_id INTEGER;
+  v_status    INTEGER;
+  v_col_val   VARCHAR2(4000);
+BEGIN
+  FOR col_rec IN col_cursor LOOP
+    v_table := col_rec.table_name;
+    v_column := col_rec.column_name;
+
+    -- Build SQL to test access and search first 5 rows
+    v_sql := 'SELECT ' || v_column || 
+             ' FROM (SELECT ' || v_column || 
+             '
