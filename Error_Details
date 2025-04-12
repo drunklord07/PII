@@ -60,3 +60,14 @@ ORA-01031: insufficient privileges
 =============================
 
 SELECT 'SELECT * FROM ' || OWNER || '.' || TABLE_NAME || ' FETCH FIRST 5 ROWS ONLY;' FROM ALL_TABLES WHERE OWNER = 'MDSYS';
+
+===========================
+
+SELECT 
+    'SELECT ''' || OWNER || '.' || TABLE_NAME || ''' AS TABLE_NAME FROM DUAL;' || CHR(10) ||
+    'SELECT * FROM ' || OWNER || '.' || TABLE_NAME || ' FETCH FIRST 5 ROWS ONLY;' 
+AS SQL_TEXT
+FROM ALL_TABLES
+WHERE OWNER = 'MDSYS'
+ORDER BY TABLE_NAME;
+
