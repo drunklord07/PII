@@ -1,0 +1,20 @@
+CREATE OR REPLACE PROCEDURE CHECK_TABLE_ACCESS AS
+BEGIN
+  FOR t IN (
+    SELECT table_name
+    FROM all_tables
+    WHERE owner = USER
+  ) LOOP
+    BEGIN
+      EXECUTE IMMEDIATE 'SELECT 1 FROM ' || t.table_name || ' WHERE ROWNUM = 1';
+      DBMS_OUTPUT.PUT_LINE('✅ Accessible: ' || t.table_name);
+    EXCEPTION
+      WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('❌ Inaccessible: ' || t.table_name || ' - ' || SQLERRM);
+    END;
+  END LOOP;
+END;
+/
+
+
+EXEC CHECK_TABLE_ACCESS;
