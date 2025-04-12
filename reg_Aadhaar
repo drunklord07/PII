@@ -1,7 +1,6 @@
 SET SERVEROUTPUT ON SIZE UNLIMITED
 
 DECLARE
-    -- Custom type for manual check tables
     TYPE t_failed_table IS RECORD (
         owner       VARCHAR2(128),
         table_name  VARCHAR2(128)
@@ -9,7 +8,6 @@ DECLARE
     TYPE t_failed_list IS TABLE OF t_failed_table INDEX BY PLS_INTEGER;
     v_failed_tables      t_failed_list;
 
-    -- Cursor variables and values
     v_sql               VARCHAR2(1000);
     v_value             VARCHAR2(4000);
     v_cur               INTEGER;
@@ -17,19 +15,16 @@ DECLARE
     v_owner             ALL_TAB_COLUMNS.OWNER%TYPE;
     v_table             ALL_TAB_COLUMNS.TABLE_NAME%TYPE;
     v_column            ALL_TAB_COLUMNS.COLUMN_NAME%TYPE;
-    v_row_count         INTEGER;
 
-    -- Counters
     v_total_tables          INTEGER := 0;
     v_successful_checks     INTEGER := 0;
     v_failed_checks         INTEGER := 0;
     v_tables_with_match     INTEGER := 0;
     v_tables_without_match  INTEGER := 0;
-    v_failed_idx            INTEGER := 0;
-
-    -- Flags
     v_match_found           BOOLEAN;
     v_table_failed          BOOLEAN;
+    v_failed_idx            INTEGER := 0;
+
 BEGIN
     FOR t IN (
         SELECT DISTINCT OWNER, TABLE_NAME
@@ -38,8 +33,8 @@ BEGIN
         v_owner := t.OWNER;
         v_table := t.TABLE_NAME;
         v_total_tables := v_total_tables + 1;
-        v_match_found := FALSE;
         v_table_failed := FALSE;
+        v_match_found := FALSE;
 
         BEGIN
             FOR c IN (
@@ -80,6 +75,8 @@ BEGIN
             END LOOP;
 
             IF v_table_failed THEN
+                DBMS_OUTPUT.PUT_LINE(v_owner || ',' || v_table || ',requires manual');
+                v_failed_checks := v_failed_checks + 1;
                 v_failed_idx := v_failed_idx + 1;
                 v_failed_tables(v_failed_idx).owner := v_owner;
                 v_failed_tables(v_failed_idx).table_name := v_table;
@@ -94,32 +91,11 @@ BEGIN
 
         EXCEPTION
             WHEN OTHERS THEN
+                DBMS_OUTPUT.PUT_LINE(v_owner || ',' || v_table || ',requires manual');
+                v_failed_checks := v_failed_checks + 1;
                 v_failed_idx := v_failed_idx + 1;
                 v_failed_tables(v_failed_idx).owner := v_owner;
                 v_failed_tables(v_failed_idx).table_name := v_table;
-        END;
-    END LOOP;
-
-    -- Recheck all failed tables for empty status
-    FOR i IN 1 .. v_failed_idx LOOP
-        BEGIN
-            v_sql := 'SELECT COUNT(*) FROM "' || v_failed_tables(i).owner || '"."' || v_failed_tables(i).table_name || '"';
-            EXECUTE IMMEDIATE v_sql INTO v_row_count;
-
-            IF v_row_count = 0 THEN
-                -- Reclassify as not found
-                DBMS_OUTPUT.PUT_LINE(v_failed_tables(i).owner || ',' || v_failed_tables(i).table_name || ',not found');
-                v_successful_checks := v_successful_checks + 1;
-                v_tables_without_match := v_tables_without_match + 1;
-            ELSE
-                DBMS_OUTPUT.PUT_LINE(v_failed_tables(i).owner || ',' || v_failed_tables(i).table_name || ',requires manual');
-                v_failed_checks := v_failed_checks + 1;
-            END IF;
-
-        EXCEPTION
-            WHEN OTHERS THEN
-                DBMS_OUTPUT.PUT_LINE(v_failed_tables(i).owner || ',' || v_failed_tables(i).table_name || ',requires manual');
-                v_failed_checks := v_failed_checks + 1;
         END;
     END LOOP;
 
@@ -139,26 +115,12 @@ BEGIN
         v_key VARCHAR2(128);
     BEGIN
         FOR i IN 1 .. v_failed_idx LOOP
-            BEGIN
-                v_sql := 'SELECT COUNT(*) FROM "' || v_failed_tables(i).owner || '"."' || v_failed_tables(i).table_name || '"';
-                EXECUTE IMMEDIATE v_sql INTO v_row_count;
-
-                IF v_row_count > 0 THEN
-                    IF v_owner_count.EXISTS(v_failed_tables(i).owner) THEN
-                        v_owner_count(v_failed_tables(i).owner) := v_owner_count(v_failed_tables(i).owner) + 1;
-                    ELSE
-                        v_owner_count(v_failed_tables(i).owner) := 1;
-                    END IF;
-                END IF;
-
-            EXCEPTION
-                WHEN OTHERS THEN
-                    IF v_owner_count.EXISTS(v_failed_tables(i).owner) THEN
-                        v_owner_count(v_failed_tables(i).owner) := v_owner_count(v_failed_tables(i).owner) + 1;
-                    ELSE
-                        v_owner_count(v_failed_tables(i).owner) := 1;
-                    END IF;
-            END;
+            v_key := v_failed_tables(i).owner;
+            IF v_owner_count.EXISTS(v_key) THEN
+                v_owner_count(v_key) := v_owner_count(v_key) + 1;
+            ELSE
+                v_owner_count(v_key) := 1;
+            END IF;
         END LOOP;
 
         DBMS_OUTPUT.PUT_LINE('Manual Check Summary by Owner:');
@@ -169,21 +131,10 @@ BEGIN
         END LOOP;
     END;
 
-    -- Manual Check Queries
+    -- Generate SELECT statements for manual checks
     DBMS_OUTPUT.PUT_LINE('Manual Check Queries:');
     FOR i IN 1 .. v_failed_idx LOOP
-        BEGIN
-            v_sql := 'SELECT COUNT(*) FROM "' || v_failed_tables(i).owner || '"."' || v_failed_tables(i).table_name || '"';
-            EXECUTE IMMEDIATE v_sql INTO v_row_count;
-
-            IF v_row_count > 0 THEN
-                DBMS_OUTPUT.PUT_LINE('SELECT * FROM ' || v_failed_tables(i).owner || '.' || v_failed_tables(i).table_name || ' FETCH FIRST 5 ROWS ONLY;');
-            END IF;
-
-        EXCEPTION
-            WHEN OTHERS THEN
-                DBMS_OUTPUT.PUT_LINE('SELECT * FROM ' || v_failed_tables(i).owner || '.' || v_failed_tables(i).table_name || ' FETCH FIRST 5 ROWS ONLY;');
-        END;
+        DBMS_OUTPUT.PUT_LINE('SELECT * FROM ' || v_failed_tables(i).owner || '.' || v_failed_tables(i).table_name || ' FETCH FIRST 5 ROWS ONLY;');
     END LOOP;
 
 END;
