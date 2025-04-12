@@ -124,15 +124,14 @@ BEGIN
         END LOOP;
 
         DBMS_OUTPUT.PUT_LINE('Manual Check Summary by Owner:');
-        FOR i IN v_owner_count.FIRST .. v_owner_count.LAST LOOP
-            IF v_owner_count.EXISTS(v_owner_count.FIRST + i - 1) THEN
-                v_key := v_owner_count.FIRST + i - 1;
-                DBMS_OUTPUT.PUT_LINE(v_key || ',' || v_owner_count(v_key));
-            END IF;
+        v_key := v_owner_count.FIRST;
+        WHILE v_key IS NOT NULL LOOP
+            DBMS_OUTPUT.PUT_LINE(v_key || ',' || v_owner_count(v_key));
+            v_key := v_owner_count.NEXT(v_key);
         END LOOP;
     END;
 
-    -- Generate SELECT statements for failed tables
+    -- Generate SELECT statements for manual checks
     DBMS_OUTPUT.PUT_LINE('Manual Check Queries:');
     FOR i IN 1 .. v_failed_idx LOOP
         DBMS_OUTPUT.PUT_LINE('SELECT * FROM ' || v_failed_tables(i).owner || '.' || v_failed_tables(i).table_name || ' FETCH FIRST 5 ROWS ONLY;');
