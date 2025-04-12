@@ -1,0 +1,90 @@
+SET SERVEROUTPUT ON SIZE UNLIMITED
+
+DECLARE
+    v_sql         VARCHAR2(1000);
+    v_value       VARCHAR2(4000);
+    v_cur         INTEGER;
+    v_status      INTEGER;
+    v_owner       ALL_TAB_COLUMNS.OWNER%TYPE;
+    v_table       ALL_TAB_COLUMNS.TABLE_NAME%TYPE;
+    v_column      ALL_TAB_COLUMNS.COLUMN_NAME%TYPE;
+    v_total_tables        INTEGER := 0;
+    v_successful_checks   INTEGER := 0;
+    v_failed_checks       INTEGER := 0;
+    v_table_failed        BOOLEAN;
+BEGIN
+    FOR t IN (
+        SELECT DISTINCT OWNER, TABLE_NAME
+        FROM ALL_TABLES
+        WHERE OWNER NOT IN ('SYS', 'SYSTEM') -- skip system schemas
+    ) LOOP
+        v_owner := t.OWNER;
+        v_table := t.TABLE_NAME;
+        v_total_tables := v_total_tables + 1;
+        v_table_failed := FALSE;
+
+        BEGIN
+            FOR c IN (
+                SELECT COLUMN_NAME
+                FROM ALL_TAB_COLUMNS
+                WHERE OWNER = v_owner AND TABLE_NAME = v_table
+            ) LOOP
+                v_column := c.COLUMN_NAME;
+
+                BEGIN
+                    -- Treat all columns as text using TO_CHAR
+                    v_sql := 'SELECT TO_CHAR("' || v_column || '") FROM "' || v_owner || '"."' || v_table || '" WHERE ROWNUM <= 5';
+
+                    v_cur := DBMS_SQL.OPEN_CURSOR;
+                    DBMS_SQL.PARSE(v_cur, v_sql, DBMS_SQL.NATIVE);
+                    DBMS_SQL.DEFINE_COLUMN(v_cur, 1, v_value, 4000);
+                    v_status := DBMS_SQL.EXECUTE(v_cur);
+
+                    WHILE DBMS_SQL.FETCH_ROWS(v_cur) > 0 LOOP
+                        DBMS_SQL.COLUMN_VALUE(v_cur, 1, v_value);
+
+                        IF REGEXP_LIKE(v_value, '^\d{12}$') THEN
+                            -- Exclude if starts with 0, 1, or 91
+                            IF NOT (v_value LIKE '0%' OR v_value LIKE '1%' OR v_value LIKE '91%') THEN
+                                DBMS_OUTPUT.PUT_LINE('Match Found:');
+                                DBMS_OUTPUT.PUT_LINE('  Owner:   ' || v_owner);
+                                DBMS_OUTPUT.PUT_LINE('  Table:   ' || v_table);
+                                DBMS_OUTPUT.PUT_LINE('  Column:  ' || v_column);
+                                DBMS_OUTPUT.PUT_LINE('  Value:   ' || v_value);
+                                DBMS_OUTPUT.PUT_LINE('---------------------------');
+                            END IF;
+                        END IF;
+                    END LOOP;
+
+                    DBMS_SQL.CLOSE_CURSOR(v_cur);
+                EXCEPTION
+                    WHEN OTHERS THEN
+                        IF DBMS_SQL.IS_OPEN(v_cur) THEN
+                            DBMS_SQL.CLOSE_CURSOR(v_cur);
+                        END IF;
+                        v_table_failed := TRUE;
+                        EXIT; -- Exit current column loop if any column fails
+                END;
+            END LOOP;
+
+            IF v_table_failed THEN
+                DBMS_OUTPUT.PUT_LINE('Table ' || v_owner || '.' || v_table || ' requires manual check.');
+                v_failed_checks := v_failed_checks + 1;
+            ELSE
+                v_successful_checks := v_successful_checks + 1;
+            END IF;
+        EXCEPTION
+            WHEN OTHERS THEN
+                DBMS_OUTPUT.PUT_LINE('Table ' || v_owner || '.' || v_table || ' requires manual check.');
+                v_failed_checks := v_failed_checks + 1;
+        END;
+    END LOOP;
+
+    -- Final summary
+    DBMS_OUTPUT.PUT_LINE('========================================');
+    DBMS_OUTPUT.PUT_LINE('Total Tables Found:        ' || v_total_tables);
+    DBMS_OUTPUT.PUT_LINE('Successfully Checked:      ' || v_successful_checks);
+    DBMS_OUTPUT.PUT_LINE('Failed Checks (manual):    ' || v_failed_checks);
+    DBMS_OUTPUT.PUT_LINE('========================================');
+END;
+/
