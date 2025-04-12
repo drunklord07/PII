@@ -1,0 +1,49 @@
+CREATE OR REPLACE PROCEDURE FIND_MOBILE_NUMBERS AS
+  CURSOR col_cursor IS
+    SELECT table_name, column_name
+    FROM all_tab_columns
+    WHERE owner = USER
+      AND data_type IN ('VARCHAR2', 'CHAR', 'CLOB');
+
+  v_sql       VARCHAR2(4000);
+  v_table     VARCHAR2(256);
+  v_column    VARCHAR2(256);
+  v_result    VARCHAR2(4000);
+  v_cursor_id INTEGER;
+  v_status    INTEGER;
+  v_col_val   VARCHAR2(4000);
+BEGIN
+  FOR col_rec IN col_cursor LOOP
+    v_table := col_rec.table_name;
+    v_column := col_rec.column_name;
+
+    -- Construct dynamic SQL
+    v_sql := 'SELECT ' || v_column || 
+             ' FROM ' || v_table || 
+             ' WHERE REGEXP_LIKE(' || v_column || ', ''^[0-9]{10}$'') AND ROWNUM = 1';
+
+    BEGIN
+      -- Open dynamic cursor
+      v_cursor_id := DBMS_SQL.OPEN_CURSOR;
+      DBMS_SQL.PARSE(v_cursor_id, v_sql, DBMS_SQL.NATIVE);
+      DBMS_SQL.DEFINE_COLUMN(v_cursor_id, 1, v_col_val, 4000);
+
+      v_status := DBMS_SQL.EXECUTE(v_cursor_id);
+
+      IF DBMS_SQL.FETCH_ROWS(v_cursor_id) > 0 THEN
+        DBMS_SQL.COLUMN_VALUE(v_cursor_id, 1, v_col_val);
+        DBMS_OUTPUT.PUT_LINE('Table: ' || v_table || ', Column: ' || v_column || ', Mobile: ' || v_col_val);
+      END IF;
+
+      DBMS_SQL.CLOSE_CURSOR(v_cursor_id);
+    EXCEPTION
+      WHEN OTHERS THEN
+        IF DBMS_SQL.IS_OPEN(v_cursor_id) THEN
+          DBMS_SQL.CLOSE_CURSOR(v_cursor_id);
+        END IF;
+        -- Optionally log or ignore invalid queries
+        -- DBMS_OUTPUT.PUT_LINE('Skipped: ' || v_table || '.' || v_column || ' - ' || SQLERRM);
+    END;
+  END LOOP;
+END;
+/
