@@ -16,7 +16,6 @@ BEGIN
     FOR t IN (
         SELECT DISTINCT OWNER, TABLE_NAME
         FROM ALL_TABLES
-        WHERE OWNER NOT IN ('SYS', 'SYSTEM') -- skip system schemas
     ) LOOP
         v_owner := t.OWNER;
         v_table := t.TABLE_NAME;
@@ -63,7 +62,7 @@ BEGIN
                             DBMS_SQL.CLOSE_CURSOR(v_cur);
                         END IF;
                         v_table_failed := TRUE;
-                        EXIT; -- Exit current column loop if any column fails
+                        EXIT; -- Exit column loop for this table
                 END;
             END LOOP;
 
