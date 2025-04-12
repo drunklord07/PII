@@ -54,3 +54,9 @@ ORA-01031: insufficient privileges
            the necessary privileges.
 *Action:   Ask your database administrator or designated security
            administrator to grant you the necessary privileges
+
+
+
+=============================
+
+SELECT 'SELECT * FROM ' || OWNER || '.' || TABLE_NAME || ' FETCH FIRST 5 ROWS ONLY;' FROM ALL_TABLES WHERE OWNER = 'MDSYS';
