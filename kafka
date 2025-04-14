@@ -1,0 +1,114 @@
+import re
+import os
+import pandas as pd
+
+def parse_transaction_file(filepath):
+    rows = []
+    with open(filepath, 'r', encoding='utf-8') as file:
+        lines = file.readlines()
+
+    transaction_type = None
+    create_time = None
+
+    for i in range(len(lines)):
+        line = lines[i].strip()
+
+        # Detect a new transaction block (transaction type line)
+        if line and not line.startswith('CreateTime:'):
+            transaction_type = line.strip()
+            continue
+
+        # Process CreateTime line
+        if line.startswith('CreateTime:'):
+            match = re.match(r"CreateTime:\s*(\d+)\s*(\{.*)", line)
+            if not match:
+                continue
+
+            create_time = match.group(1)
+            json_like_part = match.group(2).strip()
+
+            # Flatten JSON-like structure
+            entries = flatten_json_like_text(json_like_part)
+            for key, value in entries:
+                rows.append([transaction_type, create_time, key, value])
+
+    return rows
+
+
+def flatten_json_like_text(text):
+    """Parses a JSON-like string without using json.loads. Returns flat key-value pairs."""
+    key_values = []
+
+    # Stack for nested structures
+    stack = []
+    current_prefix = ''
+    buffer = ''
+    inside_string = False
+    key = ''
+    value = ''
+    reading_key = True
+    i = 0
+
+    while i < len(text):
+        char = text[i]
+
+        if char == '"':
+            inside_string = not inside_string
+
+        if not inside_string:
+            if char == '{':
+                stack.append(current_prefix)
+                if key:
+                    current_prefix += key.strip() + '.'
+                key = ''
+                reading_key = True
+                i += 1
+                continue
+            elif char == '}':
+                current_prefix = stack.pop() if stack else ''
+                i += 1
+                continue
+            elif char == ':':
+                if reading_key:
+                    key = buffer.strip().strip('"')
+                    buffer = ''
+                    reading_key = False
+                    i += 1
+                    continue
+            elif char == ',':
+                if not reading_key:
+                    value = buffer.strip().strip('"')
+                    full_key = current_prefix + key.strip()
+                    key_values.append((full_key, value))
+                    buffer = ''
+                    reading_key = True
+                    key = ''
+                    value = ''
+                    i += 1
+                    continue
+
+        buffer += char
+        i += 1
+
+    # Add the last key-value pair
+    if key and buffer:
+        value = buffer.strip().strip('"')
+        full_key = current_prefix + key.strip()
+        key_values.append((full_key, value))
+
+    return key_values
+
+
+def save_to_excel(data, input_path):
+    df = pd.DataFrame(data, columns=["Transaction Type", "CreateTime", "Key", "Value"])
+    dir_name = os.path.dirname(os.path.abspath(input_path))
+    output_path = os.path.join(dir_name, "process_output.xlsx")
+    df.to_excel(output_path, index=False)
+    print(f" Output saved to: {output_path}")
+
+
+# Example usage
+if __name__ == "__main__":
+    file_path = "code.txt"  # Replace with your actual file path
+    output = parse_transaction_file(file_path)
+    save_to_excel(output, file_path)
