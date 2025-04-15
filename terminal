@@ -1,0 +1,1 @@
+find . -type f -not -name "*.zip" -not -name "*.csv" -not -name "*.xls" -not -name "*.xlsx" -not -name "*.pdf" -print | tee /dev/tty | wc -l
