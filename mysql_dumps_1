@@ -1,0 +1,62 @@
+mysql -h your_mysql_host -u your_username -p your_database << 'EOF'
+DROP PROCEDURE IF EXISTS dump_first5_rows;
+
+SET SESSION group_concat_max_len = 1000000;
+
+DELIMITER $$
+CREATE PROCEDURE dump_first5_rows()
+BEGIN
+  DECLARE done   INT    DEFAULT FALSE;
+  DECLARE tbl    VARCHAR(255);
+  DECLARE header TEXT;
+  DECLARE cols   TEXT;
+
+  DECLARE cur CURSOR FOR
+    SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+     WHERE TABLE_SCHEMA = DATABASE();
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  OPEN cur;
+  read_loop: LOOP
+    FETCH cur INTO tbl;
+    IF done THEN LEAVE read_loop; END IF;
+
+    SELECT GROUP_CONCAT(COLUMN_NAME 
+                        ORDER BY ORDINAL_POSITION 
+                        SEPARATOR ',')
+      INTO header
+      FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME   = tbl;
+    SET @hsql = CONCAT(
+      "SELECT '", tbl, "' AS table_name, '", header, "' AS csv_row"
+    );
+    PREPARE stmt1 FROM @hsql;
+    EXECUTE stmt1;
+    DEALLOCATE PREPARE stmt1;
+
+    SELECT GROUP_CONCAT(
+             CONCAT("IFNULL(`",COLUMN_NAME,"`,'')") 
+             ORDER BY ORDINAL_POSITION 
+             SEPARATOR ','
+           )
+      INTO cols
+      FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME   = tbl;
+    SET @dsql = CONCAT(
+      "SELECT '", tbl, "' AS table_name, ",
+      "CONCAT_WS(',',", cols, ") AS csv_row ",
+      "FROM `", tbl, "` LIMIT 5"
+    );
+    PREPARE stmt2 FROM @dsql;
+    EXECUTE stmt2;
+    DEALLOCATE PREPARE stmt2;
+
+  END LOOP;
+  CLOSE cur;
+END$$
+DELIMITER ;
+
+CALL dump_first5_rows();
+EOF
