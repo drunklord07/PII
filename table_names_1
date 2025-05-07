@@ -1,0 +1,62 @@
+-- 1) Make sure DBMS_OUTPUT will capture large lines
+SET SERVEROUTPUT ON SIZE UNLIMITED
+-- 2) Widen your buffer so long CSVs aren’t wrapped/truncated
+SET LINESIZE     32767
+SET PAGESIZE     0
+SET TRIMOUT      ON
+SET TRIMSPOOL    ON
+SET ECHO         OFF
+SET VERIFY       OFF
+SET FEEDBACK     OFF
+SET HEADING      OFF
+
+-- 3) Start spooling
+SPOOL table_chunks.csv
+
+DECLARE
+  CURSOR tbl_cur IS
+    SELECT table_name
+      FROM user_tables
+     ORDER BY table_name;
+  v_chunk     VARCHAR2(32767) := '';
+  v_count     PLS_INTEGER     := 0;
+  c_chunk_max CONSTANT PLS_INTEGER := 500;
+  v_dummy     NUMBER;
+BEGIN
+  FOR rec IN tbl_cur LOOP
+    BEGIN
+      -- try a minimal read to test permission
+      EXECUTE IMMEDIATE 
+        'SELECT 1 FROM '||rec.table_name||' WHERE ROWNUM = 1'
+      INTO v_dummy;
+
+      -- if successful, append to current chunk
+      IF v_count = 0 THEN
+        v_chunk := rec.table_name;
+      ELSE
+        v_chunk := v_chunk || ',' || rec.table_name;
+      END IF;
+      v_count := v_count + 1;
+
+      -- once we hit 500 names, print & reset
+      IF v_count = c_chunk_max THEN
+        DBMS_OUTPUT.PUT_LINE(v_chunk);
+        v_chunk := '';
+        v_count := 0;
+      END IF;
+
+    EXCEPTION
+      WHEN OTHERS THEN
+        -- skip tables you can’t open
+        NULL;
+    END;
+  END LOOP;
+
+  -- print any remainder
+  IF v_count > 0 THEN
+    DBMS_OUTPUT.PUT_LINE(v_chunk);
+  END IF;
+END;
+/
+-- 4) Stop spooling
+SPOOL OFF
