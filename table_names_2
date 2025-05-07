@@ -1,0 +1,30 @@
+SET PAGESIZE   0
+SET FEEDBACK   OFF
+SET VERIFY     OFF
+SET HEADING    OFF
+SET ECHO       OFF
+SET LINESIZE   32767
+SET LONG       1000000
+
+WITH numbered AS (
+  SELECT table_name,
+         ROW_NUMBER() OVER (ORDER BY table_name) AS rn
+    FROM user_tables
+),
+by_chunk AS (
+  SELECT table_name,
+         CEIL(rn/500) AS chunk_id
+    FROM numbered
+)
+SELECT RTRIM(
+         XMLAGG(
+           XMLELEMENT(e, table_name || ',')
+           ORDER BY table_name
+         ).EXTRACT('//text()'),
+       ','
+       ) AS csv_chunk
+  FROM by_chunk
+ GROUP BY chunk_id
+ ORDER BY chunk_id;
+
+EXIT;
