@@ -29,8 +29,8 @@ BEGIN
 
         -- Construct and execute the dynamic query
         SET @query = CONCAT('INSERT INTO search_results (table_name, column_name) ',
-                            'SELECT "', table_name, '", "', column_name, '" ',
-                            'FROM ', table_name, ' WHERE ', column_name, ' = "', search_value, '"');
+                            'SELECT ''', table_name, ''', ''', column_name, ''' ',
+                            'FROM ', table_name, ' WHERE ', column_name, ' = ''', search_value, '''');
         PREPARE stmt FROM @query;
         EXECUTE stmt;
         DEALLOCATE PREPARE stmt;
