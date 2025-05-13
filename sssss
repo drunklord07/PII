@@ -1,0 +1,49 @@
+DELIMITER //
+
+CREATE PROCEDURE SearchAllTables(IN search_value VARCHAR(255))
+BEGIN
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE table_name VARCHAR(255);
+    DECLARE column_name VARCHAR(255);
+    DECLARE cur CURSOR FOR 
+        SELECT table_name, column_name 
+        FROM information_schema.columns 
+        WHERE table_schema = DATABASE();
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+    -- Create a temporary table to store results
+    CREATE TEMPORARY TABLE IF NOT EXISTS search_results (
+        table_name VARCHAR(255),
+        column_name VARCHAR(255)
+    );
+
+    -- Open the cursor
+    OPEN cur;
+
+    -- Loop through all tables and columns
+    read_loop: LOOP
+        FETCH cur INTO table_name, column_name;
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+
+        -- Construct and execute the dynamic query
+        SET @query = CONCAT('INSERT INTO search_results (table_name, column_name) ',
+                            'SELECT "', table_name, '", "', column_name, '" ',
+                            'FROM ', table_name, ' WHERE ', column_name, ' = "', search_value, '"');
+        PREPARE stmt FROM @query;
+        EXECUTE stmt;
+        DEALLOCATE PREPARE stmt;
+    END LOOP;
+
+    -- Close the cursor
+    CLOSE cur;
+
+    -- Select the results
+    SELECT * FROM search_results;
+
+    -- Drop the temporary table
+    DROP TEMPORARY TABLE search_results;
+END //
+
+DELIMITER ;
